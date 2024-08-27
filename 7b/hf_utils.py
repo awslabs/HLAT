@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Utility functions for working with HF datasets
 """
@@ -36,7 +39,7 @@ def build_dataset_from_filepaths(
         renormalize: if True, renormalize sampling_probs to sum to 1
         hf_kwargs: kwargs to pass to data mixing function
         key: which key to use to check for single-chunk arrow files
-        rename_dataset_key: If the existing dataset does not have the appropriate key, 
+        rename_dataset_key: If the existing dataset does not have the appropriate key,
                             rename the dataset column name to match the key name passed above
     """
     # TODO(@colehawk): benchmark .take performance as number of files increases
@@ -106,9 +109,9 @@ def check_arrow_for_single_chunk(filepath: str, key: str = "text", use_existing_
     # Check table has single chunk
     # https://issues.apache.org/jira/browse/ARROW-11989
     stream = pa.ipc.open_stream(mmap).read_all()
-    
+
     #If key passed above is not in the existing keys, use the existing key for the check
-    if use_existing_key: 
+    if use_existing_key:
         existing_keys = stream.schema.names #Returns a list of existing key names
         if key not in existing_keys:
             key = existing_keys[0] #Pick the first key

@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 import torch
 from transformers import default_data_collator
 from torch.utils.data.dataloader import DataLoader
