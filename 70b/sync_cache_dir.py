@@ -4,14 +4,15 @@
 
 import os
 import sys
+import shutil
 import argparse
+
 
 def sync_cache_dir(src_cache_dir : str, dst_cache_dir : str):
     if not os.path.exists(src_cache_dir):
         return
 
-    if not os.path.exists(dst_cache_dir):
-        os.system(f"mkdir -p {dst_cache_dir}")
+    os.makedirs(dst_cache_dir, exist_ok=True)
 
     compiler_version_list = os.listdir(src_cache_dir)
     for compiler_version in compiler_version_list:
@@ -32,7 +33,8 @@ def sync_cache_dir(src_cache_dir : str, dst_cache_dir : str):
             if module not in dst_module_list:
                 src_module_dir = os.path.join(src_compiler_dir, module)
                 print(f"cp -r {src_module_dir} {dst_compiler_dir}")
-                os.system(f"cp -r {src_module_dir} {dst_compiler_dir}")
+                shutil.copytree(src_module_dir, dst_compiler_dir)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
