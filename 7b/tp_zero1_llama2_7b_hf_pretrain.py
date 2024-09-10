@@ -35,7 +35,6 @@ from transformers.optimization import get_linear_schedule_with_warmup
 import copy
 from torch.utils.tensorboard import SummaryWriter
 import inspect
-import requests
 import neuronx_distributed as nxd
 from neuronx_distributed.parallel_layers import parallel_state, grads, checkpointing
 from neuronx_distributed.parallel_layers.random import model_parallel_xla_manual_seed
@@ -173,8 +172,7 @@ class Logger:
                 f"_acc{args.grad_accum_usteps}"
                 f"_warmup{args.warmup_steps}"
                 f"_max{args.max_steps}"
-                f"_xla{xla}"
-                f"_{self.get_instance_type()}",
+                f"_xla{xla}",
             )
         )
         self.tb.add_text(
@@ -188,20 +186,6 @@ class Logger:
             print(
                 f"Read {len(self.golden_steploss)} golden step loss values from {golden}"
             )
-
-    def get_instance_type(self):
-        try:
-            token = requests.put(
-                "http://169.254.169.254/latest/api/token",
-                headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"},
-            )
-            data = requests.get(
-                "http://169.254.169.254/latest/meta-data/instance-type",
-                headers={"X-aws-ec2-metadata-token": token.text},
-            )
-            return data.text
-        except:
-            return os.environ.get("HOSTNAME", "unknown")
 
     def log(self, epoch, step, step_loss, learning_rate, throughput, grad_norm=None, param_norm=None):
         time_now = time.asctime()
