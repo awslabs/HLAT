@@ -14,8 +14,16 @@ This project is licensed under the Apache-2.0 License.
 
 If you found HLAT useful in your research or applications, please cite using the following BibTeX:
 ```
+@software{HLAT,
+  title = {HLAT: High-quality Large Language Model Pre-trained on AWS Trainium},
+  author = {Haozheng Fan, Hao Zhou, Guangtai Huang, Parameswaran Raman, Xinwei Fu, Gaurav Gupta, Dhananjay Ram, Yida Wang, Jun Huan},
+  url = {https://github.com/awslabs/HLAT/},
+  year={2024}
+}
+```
+```
 @article{HLAT,
-  title={https://arxiv.org/abs/2404.10630},
+  title={HLAT: High-quality Large Language Model Pre-trained on AWS Trainium},
   author={Haozheng Fan, Hao Zhou, Guangtai Huang, Parameswaran Raman, Xinwei Fu, Gaurav Gupta, Dhananjay Ram, Yida Wang, Jun Huan},
   journal={arXiv preprint arXiv:2404.10630},
   year={2024}
