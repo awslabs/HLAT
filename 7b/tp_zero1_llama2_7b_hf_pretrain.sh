@@ -24,8 +24,8 @@ export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=llm-tra
 # export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=llm-training"
 # export NEURON_CC_FLAGS="--model-type=transformer --enable-experimental-O1 --enable-internal-call-graph  --enable-mixed-precision-accumulation --enable-saturate-infinity --retry_failed_compilation"
 
-export NEURON_RT_DBG_A2A_CC=0
-export NEURON_RT_ASYNC_EXEC_MODE=1
+# export NEURON_RT_DBG_A2A_CC=0
+# export NEURON_RT_ASYNC_EXEC_MODE=1
 
 export NEURON_FUSE_SOFTMAX=1
 export NEURON_RT_STOCHASTIC_ROUNDING_EN=1
@@ -63,10 +63,8 @@ USE_ZERO_1=0
 MBS=1
 # number of steps to run
 TOTAL_STEPS=500000
-# model path
-MODEL_PATH=/mnt_out/fanhaozh/llama2/weights/7B-hf
 # tokenizer path
-TOKENIZER_PATH="/mnt_out/fanhaozh/llama2/weights/7B-hf"
+TOKENIZER_PATH="/fsx_out/guangtai/llama2/weights/7B-hf"
 # sequence length
 SEQ_LEN=4096
 # initializer range
@@ -192,9 +190,10 @@ else
     echo "Launch pretrain..."
     # data path
     # DATA_PATH="/mnt/dataset/SlimPajama-627B/train.arrow"
-    DATA_PATH="/mnt/penshi/redpajama/arxiv.arrow /mnt/penshi/redpajama/c4.arrow /mnt/penshi/redpajama/common_crawl_2021-04.arrow /mnt/penshi/redpajama/github.arrow /mnt/penshi/redpajama/arxiv_book_stackexchange_github_wikipedia.arrow /mnt/penshi/redpajama/common_crawl_2019-03.arrow /mnt/penshi/redpajama/common_crawl_2022-05.arrow /mnt/penshi/redpajama/stackexchange.arrow /mnt/penshi/redpajama/book.arrow /mnt/penshi/redpajama/common_crawl_2020-05.arrow /mnt/penshi/redpajama/common_crawl_2023-06.arrow /mnt/penshi/redpajama/wikipedia.arrow"
+    # DATA_PATH="your own dataset path"
+    DATA_PATH="/fsx_out/fanhaozh/dataset/arxiv.arrow"
     # validation data path
-    VAL_DATA_PATH="/mnt/dataset/SlimPajama-627B/val.arrow"
+    VAL_DATA_PATH="/fsx_data/dataset/SlimPajama-627B/val.arrow"
     # dataloader
     ONLINE_ENABLED=1
     # resume ckpt dir
@@ -223,7 +222,7 @@ fi
 export FI_EFA_USE_DEVICE_RDMA=1
 export FI_PROVIDER=efa
 export FI_EFA_FORK_SAFE=1
-export CCOM_SOCKET_IFNAME=eth0
+# export CCOM_SOCKET_IFNAME=eth0
 
 if [ -v SLURM_NNODES ]
 then
@@ -332,7 +331,6 @@ echo MBS=$MBS
 echo TOTAL_STEPS=$TOTAL_STEPS
 echo WARMUP_STEPS=$WARMUP_STEPS
 echo LR=$LR
-echo MODEL_PATH=$MODEL_PATH
 echo DATA_PATH=$DATA_PATH
 echo VAL_DATA_PATH=$VAL_DATA_PATH
 echo TOKENIZER_PATH=$TOKENIZER_PATH
@@ -348,7 +346,7 @@ echo OUTPUT_LOG=$OUTPUT_LOG
 # Haozheng ckpt1: local output to speedup: --output_dir $HOME \
 torchrun $DISTRIBUTED_ARGS \
     $SCRIPT_DIR/tp_zero1_llama2_7b_hf_pretrain.py \
-    --model_path $MODEL_PATH \
+    --training_config $SCRIPT_DIR/7b_config.json \
     --dataset_path $DATA_PATH \
     --val_dataset_path $VAL_DATA_PATH \
     --tokenizer_path $TOKENIZER_PATH \
@@ -367,11 +365,9 @@ torchrun $DISTRIBUTED_ARGS \
     --print_grad_norm \
     --constant_attention_mask \
     --selective_checkpoint_enabled \
-    --tb_dir /mnt_out/tensorboard/guangtai/$SCRIPT_DIR_NAME \
-    $EXTRA_ARGS |& tee $OUTPUT_LOG
+    --tb_dir /fsx_out/tensorboard/fanhaozh/$SCRIPT_DIR_NAME \
+    $EXTRA_ARGS
 
-    # --selective_checkpoint_enabled \
-    # --print_grad_norm \
 # --resume_ckpt_dir /mnt_out/fanhaozh/llama2/golden_test_load/resume_ckpt_dir_360 \
 
 ret=${PIPESTATUS[0]}

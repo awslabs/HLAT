@@ -24,7 +24,6 @@ import torch_xla.distributed.xla_multiprocessing as xmp
 import torch_xla.distributed.xla_backend
 import numpy as np
 from transformers import (
-    AdamW,
     default_data_collator,
     set_seed,
     LlamaConfig,
@@ -42,7 +41,6 @@ from neuronx_distributed.utils.model_utils import move_model_to_device
 import datasets
 
 from neuronx_distributed.optimizer import NeuronZero1Optimizer
-from adamw_fp32_optim_params import AdamW_FP32OptimParams
 from modeling_llama_nxd import LlamaForCausalLM
 from scheduler import get_cosine_schedule_with_warmup, get_nemo_scheduler
 from online_example_packing import ExamplePackDataset
@@ -311,10 +309,9 @@ def create_validation_dataloader(
     return val_dataloader
 
 def get_model(flags):
-    model_path, seq_len = flags.model_path, flags.seq_len
-    config = LlamaConfig.from_pretrained(model_path)
+    config = LlamaConfig.from_pretrained(flags.training_config)
     config.use_cache = False
-    config.max_position_embeddings = max(config.max_position_embeddings, seq_len)
+    config.max_position_embeddings = max(config.max_position_embeddings, flags.seq_len)
     if flags.num_layers > 0:
         config.num_hidden_layers = flags.num_layers
     config.sequence_parallel_enabled = flags.sequence_parallel_enabled
@@ -522,15 +519,10 @@ def train_llama(flags):
         },
     ]
 
-    if flags.use_mix_precision:
-        optimizer_cls = AdamW_FP32OptimParams
-    else:
-        optimizer_cls = AdamW
-
     if flags.use_zero_1:
         optimizer = NeuronZero1Optimizer(
             optimizer_grouped_parameters,
-            optimizer_cls,
+            torch.optim.AdamW,
             lr=flags.lr,
             pin_layout=False,
             sharding_groups=parallel_state.get_data_parallel_group(as_list=True),
@@ -540,7 +532,7 @@ def train_llama(flags):
             eps=flags.optim_eps,
         )
     else:
-        optimizer = optimizer_cls(
+        optimizer = torch.optim.AdamW(
             optimizer_grouped_parameters,
             flags.lr,
             # Haozheng HP:
@@ -1013,9 +1005,9 @@ def _mp_fn(index, flags):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_path",
+        "--training_config",
         type=str,
-        help="Model weight and config path.",
+        help="Model config path.",
     )
     parser.add_argument(
         "--dataset_path",

@@ -3,6 +3,7 @@
 
 import os
 import math
+import signal
 import glob
 import random
 import torch
@@ -12,6 +13,7 @@ import argparse
 import json
 import queue
 import gc
+import psutil
 from pathlib import Path
 from typing import Any, Dict, List
 from datetime import datetime, timezone
@@ -26,7 +28,6 @@ import torch_xla.distributed.xla_multiprocessing as xmp
 import torch_xla.distributed.xla_backend
 import numpy as np
 from transformers import (
-    AdamW,
     default_data_collator,
     set_seed,
     LlamaConfig,
@@ -46,7 +47,6 @@ from neuronx_distributed.parallel_layers import mappings
 import datasets
 
 from neuronx_distributed.optimizer import NeuronZero1Optimizer
-from adamw_fp32_optim_params import AdamW_FP32OptimParams
 from modeling_llama_nxd import (
     CoreAttention,
     LlamaDecoderLayer,
@@ -636,10 +636,7 @@ def train_llama(flags):
     model_dtype = get_dtype(model)
 
     param_groups = get_param_groups_by_weight_decay(model, 0.1)
-    if flags.use_mix_precision:
-        optimizer_cls = AdamW_FP32OptimParams
-    else:
-        optimizer_cls = AdamW
+    optimizer_cls = torch.optim.AdamW
     # haozheng amp:
     optimizer = nxd.initialize_parallel_optimizer(
         nxd_config, optimizer_cls, param_groups, lr=flags.lr,
@@ -1143,6 +1140,34 @@ def _mp_fn(index, flags):
     xm.rendezvous("_mp_fn finished")
 
 
+def _terminate_process_handler(signum, frame) -> None:
+    """Termination handler that raises exceptions on the main process.
+
+    When the process receives death signal(SIGTERM, SIGINT), this termination handler will
+    be invoked. It raises the ``SignalException`` exception that should be processed by the
+    user code. Python does not terminate process after the termination handler is finished,
+    so the exception should not be silently ignored, otherwise the process will never
+    be terminated.
+    """
+    # shutdown subprocess
+    sigval = signal.Signals(signum)
+    current_process = psutil.Process()
+    children = current_process.children(recursive=True)
+    print(f"[WARNING] Worker process {os.getpid()} got signal: {sigval}", flush=True)
+    for child in children:
+        print(
+            f"[WARNING] Closing process {child.pid} (parent {current_process.pid}) via signal {sigval}",
+            flush=True,
+        )
+        try:
+            os.kill(child.pid, sigval)
+        except ProcessLookupError:
+            # If the process exited because of some reason,
+            # `ProcessLookupError` will be rasied, it is safe to ignore it.
+            pass
+    raise RuntimeError(f"Worker process {os.getpid()} got signal: {sigval}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--tensor_parallel_size", type=int, default=8, help="tensor_parallel_size")
@@ -1418,6 +1443,9 @@ if __name__ == "__main__":
         os.environ["XLA_DOWNCAST_BF16"]="1"
     else:
         os.environ["XLA_USE_BF16"]="1"
+
+    signal.signal(signal.SIGTERM, _terminate_process_handler)
+    signal.signal(signal.SIGINT, _terminate_process_handler)
 
     # WORLD_SIZE is set by torchrun
     if os.environ.get("WORLD_SIZE"):

@@ -10,7 +10,6 @@ from torch import nn
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
-from nemo.core.optim import prepare_lr_scheduler
 from omegaconf import OmegaConf
 
 def get_cosine_schedule_with_warmup(
@@ -68,6 +67,7 @@ sched_cfg_dict = {
 sched_cfg = OmegaConf.create(sched_cfg_dict)
 
 def get_nemo_scheduler(optimizer):
+    from nemo.core.optim import prepare_lr_scheduler
     sched_dict = prepare_lr_scheduler(
         optimizer,
         sched_cfg,

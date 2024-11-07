@@ -5,14 +5,25 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 SCRIPT_DIR_NAME=$(basename $SCRIPT_DIR)
 
-if [ -z $JOB_NAME ]; then
-    LOG_DIR=$SCRIPT_DIR/log_default
-else
+#############################################
+# set log dir
+
+if [ -n "$JOB_NAME" ]; then
+    # mstar job
     LOG_DIR=$SCRIPT_DIR/log_$JOB_NAME
+elif [ -n "$SLURM_JOB_ID" ]; then
+    # slurm job
+    LOG_DIR=$SCRIPT_DIR/log_$SLURM_JOB_ID
+else
+    # default
+    LOG_DIR=$SCRIPT_DIR/log_default
 fi
 
 echo "LOG_DIR = $LOG_DIR"
+
 mkdir -p $LOG_DIR/
+
+#############################################
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 [wiki|pretrain|ut]"
@@ -30,9 +41,10 @@ fi
 # User defined parameters and env vars
 
 # haozheng amp:
-export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=llm-training --enable-mixed-precision-accumulation"
-# export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=llm-training"
+# export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=llm-training --enable-mixed-precision-accumulation"
+export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=llm-training"
 # export NEURON_CC_FLAGS="--model-type=transformer --enable-experimental-O1 --enable-internal-call-graph  --enable-mixed-precision-accumulation --enable-saturate-infinity --retry_failed_compilation"
+export NEURON_EXPERIMENTAL_COMPRESS_RG=1
 
 # export NEURON_RT_DBG_A2A_CC=0
 # export NEURON_RT_ASYNC_EXEC_MODE=1
@@ -40,7 +52,7 @@ export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=llm-tra
 export NEURON_FUSE_SOFTMAX=1
 export NEURON_RT_STOCHASTIC_ROUNDING_EN=0
 # export NEURON_RT_ENABLE_VERBOSE_NUMERICAL_ERRORS=0
-export NEURON_RT_ASYNC_EXEC_MAX_INFLIGHT_REQUESTS=7
+export NEURON_RT_ASYNC_EXEC_MAX_INFLIGHT_REQUESTS=31
 # export NEURON_TRANSFER_WITH_STATIC_RING_OPS=""
 export MALLOC_ARENA_MAX=128
 
@@ -88,7 +100,7 @@ AMP_ENABLED=1
 # haozheng return_loss_on_cpu:
 RETURN_LOSS_ON_CPU=0
 # tokenizer path
-TOKENIZER_PATH="/mnt_out/guangtai/llama2/weights/7B-hf"
+TOKENIZER_PATH="/fsx_out/guangtai/llama2/weights/7B-hf"
 # sequence length
 SEQ_LEN=4096
 # initializer range
@@ -102,7 +114,7 @@ echo "TASK = $TASK"
 if [ $TASK = "ut" ]; then
     echo "Launch ut..."
     # # data path
-    # DATA_PATH="/mnt_out/fanhaozh/llama2/ut_dataset"
+    # DATA_PATH="/fsx_out/fanhaozh/llama2/ut_dataset"
     # # dataloader
     # ONLINE_ENABLED=0
     # data path
@@ -171,7 +183,9 @@ else
     # data path
     # DATA_PATH="/mnt/dataset/SlimPajama-627B/train.arrow"
     # DATA_PATH="/mnt/penshi/redpajama/arxiv.arrow /mnt/penshi/redpajama/c4.arrow /mnt/penshi/redpajama/common_crawl_2021-04.arrow /mnt/penshi/redpajama/github.arrow /mnt/penshi/redpajama/arxiv_book_stackexchange_github_wikipedia.arrow /mnt/penshi/redpajama/common_crawl_2019-03.arrow /mnt/penshi/redpajama/common_crawl_2022-05.arrow /mnt/penshi/redpajama/stackexchange.arrow /mnt/penshi/redpajama/book.arrow /mnt/penshi/redpajama/common_crawl_2020-05.arrow /mnt/penshi/redpajama/common_crawl_2023-06.arrow /mnt/penshi/redpajama/wikipedia.arrow"
-    DATA_PATH="/mnt_out/guangtai/dataset/redpajama/train.arrow"
+    # DATA_PATH="your own dataset path"
+    DATA_PATH="/fsx_out/fanhaozh/dataset/arxiv.arrow"
+    # DATA_PATH="/fsx_out/guangtai/dataset/redpajama/train.arrow"
     # validation data path
     # VAL_DATA_PATH="/mnt/dataset/SlimPajama-627B/val.arrow"
     # dataloader
@@ -222,7 +236,7 @@ fi
 export FI_EFA_USE_DEVICE_RDMA=1
 export FI_PROVIDER=efa
 export FI_EFA_FORK_SAFE=1
-export CCOM_SOCKET_IFNAME=eth0
+# export CCOM_SOCKET_IFNAME=eth0
 
 export PROCESSES_PER_NODE=32
 
@@ -281,7 +295,9 @@ fi
 DISTRIBUTED_ARGS="--nproc_per_node $PROCESSES_PER_NODE --nnodes $NTASKS --node_rank $NODEID --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 echo "DISTRIBUTED_ARGS = $DISTRIBUTED_ARGS"
 
-sysctl -w net.ipv4.ip_local_reserved_ports=44000,48620,41000,23456
+# on EKS we do not need sudo
+# sysctl -w net.ipv4.ip_local_reserved_ports=44000,48620,41000,23456
+sudo sysctl -w net.ipv4.ip_local_reserved_ports=44000,48620,41000,23456
 
 #############################################
 # extra args
@@ -415,7 +431,7 @@ export TORCH_DIST_INIT_BARRIER=0
 # Haozheng ckpt1: local output to speedup: --output_dir $HOME \
 # Haozheng 0207 param norm:
 $CMD_PREFIX \
-    /70_llama2/i0124/tp_zero1_llama2_70b_hf_pretrain.py \
+    $SCRIPT_DIR/tp_zero1_llama2_70b_hf_pretrain.py \
     --training_config $SCRIPT_DIR/70b_config.json \
     --dataset_path $DATA_PATH \
     --tokenizer_path $TOKENIZER_PATH \
@@ -436,8 +452,8 @@ $CMD_PREFIX \
     --print_grad_norm \
     --print_param_norm \
     --constant_attention_mask \
-    --tb_dir /mnt_out/tensorboard/zhuha/$SCRIPT_DIR_NAME \
-    $EXTRA_ARGS |& tee $OUTPUT_LOG
+    --tb_dir /fsx_out/tensorboard/fanhaozh/$SCRIPT_DIR_NAME \
+    $EXTRA_ARGS
 
     # --output_dir $SCRIPT_DIR/output \
     # --val_dataset_path $VAL_DATA_PATH \
